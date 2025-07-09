@@ -8,6 +8,7 @@ use axum::{
     response::Json,
 };
 use validator::Validate;
+use tracing::{info, error};
 
 /// Create a new note
 #[utoipa::path(
@@ -29,8 +30,10 @@ pub async fn create_note(
     Extension(user_id): Extension<i32>,
     Json(request): Json<CreateNoteRequest>,
 ) -> Result<(StatusCode, Json<NoteResponse>), (StatusCode, Json<ApiError>)> {
+    info!("Attempting to create a new note for user_id: {}", user_id);
     // Validate request
     if let Err(errors) = request.validate() {
+        error!("Validation failed: {}", errors);
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ApiError {
@@ -43,14 +46,20 @@ pub async fn create_note(
     let note_service = NoteService::new(db_pool);
     
     match note_service.create_note(request, user_id).await {
-        Ok(note) => Ok((StatusCode::CREATED, Json(note))),
-        Err(err) => Err((
+        Ok(note) => {
+            info!("Successfully created note with id: {}", note.id);
+            Ok((StatusCode::CREATED, Json(note)))
+        },
+        Err(err) => {
+            error!("Failed to create note for user_id: {}: {}", user_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Note Creation Failed".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
 
@@ -71,17 +80,24 @@ pub async fn get_user_notes(
     State(db_pool): State<DatabasePool>,
     Extension(user_id): Extension<i32>,
 ) -> Result<Json<Vec<NoteResponse>>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to retrieve notes for user_id: {}", user_id);
     let note_service = NoteService::new(db_pool);
     
     match note_service.get_user_notes(user_id).await {
-        Ok(notes) => Ok(Json(notes)),
-        Err(err) => Err((
+        Ok(notes) => {
+            info!("Successfully retrieved {} notes for user_id: {}", notes.len(), user_id);
+            Ok(Json(notes))
+        },
+        Err(err) => {
+            error!("Failed to retrieve notes for user_id: {}: {}", user_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Failed to retrieve notes".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
 
@@ -107,24 +123,34 @@ pub async fn get_note_by_id(
     Path(note_id): Path<i32>,
     Extension(user_id): Extension<i32>,
 ) -> Result<Json<NoteResponse>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to retrieve note with id: {} for user_id: {}", note_id, user_id);
     let note_service = NoteService::new(db_pool);
     
     match note_service.get_note_by_id(note_id, user_id).await {
-        Ok(Some(note)) => Ok(Json(note)),
-        Ok(None) => Err((
+        Ok(Some(note)) => {
+            info!("Successfully retrieved note with id: {}", note_id);
+            Ok(Json(note))
+        },
+        Ok(None) => {
+            error!("Note with id: {} not found for user_id: {}", note_id, user_id);
+            Err((
             StatusCode::NOT_FOUND,
             Json(ApiError {
                 error: "Note Not Found".to_string(),
                 message: "Note with the specified ID was not found".to_string(),
             }),
-        )),
-        Err(err) => Err((
+        ))
+        },
+        Err(err) => {
+            error!("Failed to retrieve note with id: {}: {}", note_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Internal Server Error".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
 
@@ -153,8 +179,10 @@ pub async fn update_note(
     Extension(user_id): Extension<i32>,
     Json(request): Json<UpdateNoteRequest>,
 ) -> Result<Json<NoteResponse>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to update note with id: {} for user_id: {}", note_id, user_id);
     // Validate request
     if let Err(errors) = request.validate() {
+        error!("Validation failed: {}", errors);
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ApiError {
@@ -167,21 +195,30 @@ pub async fn update_note(
     let note_service = NoteService::new(db_pool);
     
     match note_service.update_note(note_id, request, user_id).await {
-        Ok(Some(note)) => Ok(Json(note)),
-        Ok(None) => Err((
+        Ok(Some(note)) => {
+            info!("Successfully updated note with id: {}", note_id);
+            Ok(Json(note))
+        },
+        Ok(None) => {
+            error!("Note with id: {} not found for user_id: {}", note_id, user_id);
+            Err((
             StatusCode::NOT_FOUND,
             Json(ApiError {
                 error: "Note Not Found".to_string(),
                 message: "Note with the specified ID was not found".to_string(),
             }),
-        )),
-        Err(err) => Err((
+        ))
+        },
+        Err(err) => {
+            error!("Failed to update note with id: {}: {}", note_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Note Update Failed".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
 
@@ -207,24 +244,34 @@ pub async fn delete_note(
     Path(note_id): Path<i32>,
     Extension(user_id): Extension<i32>,
 ) -> Result<StatusCode, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to delete note with id: {} for user_id: {}", note_id, user_id);
     let note_service = NoteService::new(db_pool);
     
     match note_service.delete_note(note_id, user_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err((
+        Ok(true) => {
+            info!("Successfully deleted note with id: {}", note_id);
+            Ok(StatusCode::NO_CONTENT)
+        },
+        Ok(false) => {
+            error!("Note with id: {} not found for user_id: {}", note_id, user_id);
+            Err((
             StatusCode::NOT_FOUND,
             Json(ApiError {
                 error: "Note Not Found".to_string(),
                 message: "Note with the specified ID was not found".to_string(),
             }),
-        )),
-        Err(err) => Err((
+        ))
+        },
+        Err(err) => {
+            error!("Failed to delete note with id: {}: {}", note_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Note Deletion Failed".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
 
@@ -249,16 +296,23 @@ pub async fn search_notes(
     Extension(user_id): Extension<i32>,
     Query(search_request): Query<SearchRequest>,
 ) -> Result<Json<Vec<NoteResponse>>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to search notes with term: {:?} for user_id: {}", search_request.search_term, user_id);
     let note_service = NoteService::new(db_pool);
     
     match note_service.search_notes(user_id, search_request.search_term).await {
-        Ok(notes) => Ok(Json(notes)),
-        Err(err) => Err((
+        Ok(notes) => {
+            info!("Successfully found {} notes for user_id: {}", notes.len(), user_id);
+            Ok(Json(notes))
+        },
+        Err(err) => {
+            error!("Failed to search notes for user_id: {}: {}", user_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Search Failed".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }

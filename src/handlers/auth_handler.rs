@@ -7,6 +7,7 @@ use axum::{
     response::Json,
 };
 use validator::Validate;
+use tracing::{info, error};
 
 /// Register a new user
 #[utoipa::path(
@@ -24,8 +25,10 @@ pub async fn register(
     State(db_pool): State<DatabasePool>,
     Json(request): Json<RegisterRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to register a new user with email: {}", request.email);
     // Validate request
     if let Err(errors) = request.validate() {
+        error!("Validation failed: {}", errors);
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ApiError {
@@ -38,8 +41,12 @@ pub async fn register(
     let auth_service = AuthService::new(db_pool);
     
     match auth_service.register_user(request).await {
-        Ok(response) => Ok(Json(response)),
+        Ok(response) => {
+            info!("Successfully registered user with email: {}", response.email);
+            Ok(Json(response))
+        },
         Err(err) => {
+            error!("Failed to register user: {}", err);
             let status_code = if err.to_string().contains("duplicate") {
                 StatusCode::CONFLICT
             } else {
@@ -73,9 +80,10 @@ pub async fn login(
     State(db_pool): State<DatabasePool>,
     Json(request): Json<LoginRequest>,
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<ApiError>)> {
-    println!("Login request received: {:?}", request);
+    info!("Login request received for email: {}", request.email);
     // Validate request
     if let Err(errors) = request.validate() {
+        error!("Validation failed: {}", errors);
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ApiError {
@@ -88,8 +96,12 @@ pub async fn login(
     let auth_service = AuthService::new(db_pool);
     
     match auth_service.login_user(request).await {
-        Ok(response) => Ok(Json(response)),
+        Ok(response) => {
+            info!("Successfully logged in user with email: {}", response.email);
+            Ok(Json(response))
+        },
         Err(err) => {
+            error!("Failed to login user: {}", err);
             let status_code = if err.to_string().contains("Invalid credentials") || err.to_string().contains("User not found") {
                 StatusCode::UNAUTHORIZED
             } else {

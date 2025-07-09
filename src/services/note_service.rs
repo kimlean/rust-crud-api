@@ -13,19 +13,20 @@ impl NoteService {
     }
 
     pub async fn create_note(&self, request: CreateNoteRequest, user_id: i32) -> Result<NoteResponse> {
-        let query = "SELECT sp_create_note($1, $2, $3) as note_id";
+        let query = "SELECT * FROM sp_create_or_update_note($1, $2, $3, $4) as note_id";
         let params: &[&(dyn tokio_postgres::types::ToSql + Sync)] = &[
+            &request.id,
             &request.title,
             &request.content,
             &user_id,
         ];
 
         let row = self.db.execute_query_one(query, params).await?;
-        
+        println!("Row returned from database: {:?}", row);
         match row {
             Some(row) => {
-                let note_id: i32 = row.get("note_id");
-                
+                let note_id: i32 = row.get("noteid");
+
                 // Get the created note
                 self.get_note_by_id(note_id, user_id).await?
                     .ok_or_else(|| anyhow::anyhow!("Failed to retrieve created note"))

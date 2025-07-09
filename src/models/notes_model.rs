@@ -8,6 +8,7 @@ pub struct CreateNoteRequest {
     #[validate(length(min = 1, max = 255))]
     pub title: String,
     pub content: String,
+    pub id: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema, Validate)]

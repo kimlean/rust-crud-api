@@ -7,6 +7,7 @@ use axum::{
     http::StatusCode,
     response::Json,
 };
+use tracing::{info, error};
 
 /// Get user by ID
 #[utoipa::path(
@@ -30,8 +31,10 @@ pub async fn get_user_by_id(
     Path(user_id): Path<i32>,
     Extension(current_user_id): Extension<i32>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ApiError>)> {
+    info!("Attempting to retrieve user with id: {}", user_id);
     // Check if user is requesting their own information
     if current_user_id != user_id {
+        error!("Forbidden request: user {} attempted to access user {} information", current_user_id, user_id);
         return Err((
             StatusCode::FORBIDDEN,
             Json(ApiError {
@@ -44,20 +47,29 @@ pub async fn get_user_by_id(
     let user_service = UserService::new(db_pool);
     
     match user_service.get_user_by_id(user_id).await {
-        Ok(Some(user)) => Ok(Json(user)),
-        Ok(None) => Err((
+        Ok(Some(user)) => {
+            info!("Successfully retrieved user with id: {}", user_id);
+            Ok(Json(user))
+        },
+        Ok(None) => {
+            error!("User with id: {} not found", user_id);
+            Err((
             StatusCode::NOT_FOUND,
             Json(ApiError {
                 error: "User Not Found".to_string(),
                 message: "User with the specified ID was not found".to_string(),
             }),
-        )),
-        Err(err) => Err((
+        ))
+        },
+        Err(err) => {
+            error!("Failed to retrieve user with id: {}: {}", user_id, err);
+            Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ApiError {
                 error: "Internal Server Error".to_string(),
                 message: err.to_string(),
             }),
-        )),
+        ))
+        },
     }
 }
